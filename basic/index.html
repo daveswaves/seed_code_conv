@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR Playground</title>
+
+<style>
+    #seed-phrase, #dec264 {
+        display: block;
+        margin-bottom: 10px;
+    }
+    #seed-phrase {width: 70%;}
+    #bin264 {width: 90%;}
+    #dec264 {width: 800px;}
+    
+    .hidden, .hide {display: none !important;}
+    .show {display: block !important;}
+</style>
+
+</head>
+<body>
+
+<!-- Seed Phrase -->
+<p>BIP39 Seed Phrase:</p>
+<textarea
+    id="seed-phrase"
+    class="phrase private-data form-control"
+    data-show-qr=""
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="none"
+    spellcheck="false"
+></textarea>
+
+<p>264-bit private key:</p>
+<textarea
+    id="bin264"
+    class="phrase private-data form-control"
+    data-show-qr=""
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="none"
+    spellcheck="false"
+></textarea>
+
+<p>264-bit private key as decimal:</p>
+<textarea
+    id="dec264"
+    class="phrase private-data form-control"
+    data-show-qr=""
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="none"
+    spellcheck="false"
+></textarea>
+
+<div class="qr-hint">Click field to toggle QR</div>
+<div class="qr-container">
+    <div class="qr-hider hidden">
+        <div class="qr-image"></div>
+    </div>
+</div>
+
+
+<script src="kjua.min.js"></script><!-- Required for QR Code -->
+<script src="jquery_3.2.1.min.js"></script>
+
+<script type="module">
+    // https://iancoleman.io/bip39/
+    
+    import { wordlistFnc } from './wordlist.js';
+    const wordlist = wordlistFnc();
+    
+    document.addEventListener('DOMContentLoaded', async () => {
+        let bin256 = '';
+        for (let i = 0; i < 256; i++) bin256 += (Math.random() > 0.5 ? '1' : '0');
+        
+        // const cs = checkSum(bin256);
+        const cs = await checkSum(bin256);
+        let privkey = bin256 + cs;
+        
+        console.log(privkey);
+        
+        const segs = chunkString(privkey, 11);
+        
+        let qr_data = segs.map(seg => String(parseInt(seg, 2)).padStart(4, '0')).join('');
+        
+        // console.log(qr_data);
+        
+        let seedPhrase = getSeedPhrase(segs);
+        
+        $("#seed-phrase").val(seedPhrase);
+        $("#bin264").val(privkey);
+        $("#dec264").val(qr_data);
+        
+        // seedPhraseToConsole(segs);
+    });
+    
+    // 00101001001_01101100110_10011000110_10010011001_00111000111_01101111010_01000110010_10011101011_10001111111_10101011011_10001001111_10000010111_10101100100_11111010100_10010110101_00010101000_11000000010_00010000110_10001110111_00000100000_11000001010_00101111100_11010011000_101 + 11111011
+    
+    // 0329_0870_1222_1177_0455_0890_0562_1259_1151_1371_1103_1047_1380_2004_1205_0168_1538_0134_1143_0032_1546_0380_1688_1531
+    
+    // circle holiday occur nasty decline hungry edge output morning problem measure load prosper whisper note bench scare awkward moment advice scout convince spread satoshi
+
+    const DOM = {
+        qrContainer: $(".qr-container"),
+        qrHider: $(".qr-container .qr-hider"),
+        qrImage: $(".qr-container .qr-image")
+    }
+    
+    let lastContent = "";
+    let isVisible = false;
+    
+    $(document).on("click", "[data-show-qr]", function (e) {
+        e.stopPropagation();
+        let content = this.value || this.textContent.trim();
+        if (!content) return;
+        
+        if (isVisible && content === lastContent) {
+            hideQr();
+            return;
+        }
+        
+        showQr(content);
+    });
+    
+    function showQr(content) {
+        lastContent = content;
+        isVisible = true;
+
+        DOM.qrImage.empty();
+
+        const qrEl = kjua({
+            text: content,
+            render: "canvas",
+            size: 310,
+            ecLevel: "H"
+        });
+
+        DOM.qrImage.append(qrEl);
+
+        DOM.qrHider.removeClass("hidden");
+        DOM.qrContainer.removeClass("hidden");
+        
+        
+        $(".qr-hint").html('Click field to toggle QR (Esc to hide)');
+    }
+    
+    function hideQr() {
+        isVisible = false;
+        DOM.qrContainer.addClass("hidden");
+        
+        $(".qr-hint").html('Click field to toggle QR');
+    }
+    
+    // Hide if QR clicked
+    DOM.qrContainer.on('click', function(e) {
+        hideQr();
+    });
+    
+    // Hide if Esc pressed
+    $(document).on('keydown', function(e) {
+        if (e.key === "Escape") {
+            hideQr();
+        }
+    });
+    
+    // Compute SHA-256 checksum of a 256-bit binary string
+    async function checkSum(bin256) {
+      const bytes = new Uint8Array(32);
+      for (let i = 0; i < 32; i++) {
+        bytes[i] = parseInt(bin256.substr(i * 8, 8), 2);
+      }
+
+      const hashBuffer = await crypto.subtle.digest('SHA-256', bytes);
+      const hashArray = new Uint8Array(hashBuffer);
+      const firstByte = hashArray[0];
+      const checksum = firstByte.toString(2).padStart(8, '0');
+      return checksum;
+    }
+    
+    function chunkString(str, size){
+      const chunks = [];
+      for(let i = 0; i < str.length; i += size) chunks.push(str.slice(i, i + size));
+      return chunks;
+    }
+    
+    function getSeedPhrase(segs) {
+      const words = segs.map(seg => {
+        return wordlist[parseInt(seg, 2)];
+      });
+      return words.join(' ');
+    }
+    
+    function seedPhraseToConsole(segs) {
+      const words = segs.map(seg => {
+        return wordlist[parseInt(seg, 2)];
+      });
+      console.log('24 word seedphrase: '+ words.join(' '));
+    }
+</script>
+
+</body>
+</html>
