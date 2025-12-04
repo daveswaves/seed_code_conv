@@ -7,6 +7,30 @@
 <title>QR Playground</title>
 
 <style>
+    body {
+        background: #071023;
+        /*background: linear-gradient(180deg,#071023 0%, #07172a 100%);*/
+        color: #e6eef8
+    }
+    
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(32, 26px);
+        grid-auto-rows: 26px;
+        /*gap: 3px;*/
+    }
+    .cell {
+        width: 26px;
+        height: 26px;
+        border: 1px solid #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        background: black;
+        color: #ff0;
+    }
+    
     #seed-phrase, #dec264 {
         display: block;
         margin-bottom: 10px;
@@ -22,19 +46,10 @@
 </head>
 <body>
 
-<!-- Seed Phrase -->
-<p>BIP39 Seed Phrase:</p>
-<textarea
-    id="seed-phrase"
-    class="phrase private-data form-control"
-    data-show-qr=""
-    autocomplete="off"
-    autocorrect="off"
-    autocapitalize="none"
-    spellcheck="false"
-></textarea>
+<p>256-bit private key:</p>
+<div id="grid" class="grid"></div>
 
-<p>264-bit private key:</p>
+<p>256-bit private key + 8-bit checksum:</p>
 <textarea
     id="bin264"
     class="phrase private-data form-control"
@@ -48,6 +63,17 @@
 <p>264-bit private key as decimal:</p>
 <textarea
     id="dec264"
+    class="phrase private-data form-control"
+    data-show-qr=""
+    autocomplete="off"
+    autocorrect="off"
+    autocapitalize="none"
+    spellcheck="false"
+></textarea>
+
+<p>BIP39 Seed Phrase:</p>
+<textarea
+    id="seed-phrase"
     class="phrase private-data form-control"
     data-show-qr=""
     autocomplete="off"
@@ -77,25 +103,20 @@
         let bin256 = '';
         for (let i = 0; i < 256; i++) bin256 += (Math.random() > 0.5 ? '1' : '0');
         
-        // const cs = checkSum(bin256);
         const cs = await checkSum(bin256);
         let privkey = bin256 + cs;
         
-        console.log(privkey);
+        await populateGrid(bin256);
         
         const segs = chunkString(privkey, 11);
         
         let qr_data = segs.map(seg => String(parseInt(seg, 2)).padStart(4, '0')).join('');
         
-        // console.log(qr_data);
-        
         let seedPhrase = getSeedPhrase(segs);
         
-        $("#seed-phrase").val(seedPhrase);
         $("#bin264").val(privkey);
         $("#dec264").val(qr_data);
-        
-        // seedPhraseToConsole(segs);
+        $("#seed-phrase").val(seedPhrase);
     });
     
     // 00101001001_01101100110_10011000110_10010011001_00111000111_01101111010_01000110010_10011101011_10001111111_10101011011_10001001111_10000010111_10101100100_11111010100_10010110101_00010101000_11000000010_00010000110_10001110111_00000100000_11000001010_00101111100_11010011000_101 + 11111011
@@ -199,6 +220,24 @@
         return wordlist[parseInt(seg, 2)];
       });
       console.log('24 word seedphrase: '+ words.join(' '));
+    }
+    
+    async function populateGrid(bin256) {
+        const grid = document.getElementById("grid");
+        // const loadBtn = document.getElementById("load");
+
+        for (let i = 0; i < 256; i++) {
+            const div = document.createElement("div");
+            div.className = "cell";
+            grid.appendChild(div);
+        }
+        
+        const cells = [...grid.children];
+        
+        for (let i = 0; i < 256; i++) {
+            cells[i].textContent = bin256[i] === "1" ? "1" : "0";
+            await new Promise(r => setTimeout(r, 30)); // delay per cell (ms)
+        }
     }
 </script>
 
